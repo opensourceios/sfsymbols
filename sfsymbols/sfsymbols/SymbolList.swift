@@ -17,6 +17,8 @@ struct SymbolList: View {
     @State private var sortOrder: SortOrder = .defaultOrder
     @State private var showingDetails = false
     
+    @Namespace private var namespace
+    
     private let layout = [
         GridItem(.adaptive(minimum: 100), alignment: .top)
     ]
@@ -24,62 +26,67 @@ struct SymbolList: View {
     var pluralizer: String { filteredSymbols(searchText).count == 1 ? "" : "s" }
     
     var body: some View {
-        NavigationView {
-            ZStack {
-                ScrollView {
-                    searchBar
-                    HStack {
-                        Text("\(filteredSymbols(searchText).count) symbol\(pluralizer)")
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                            .foregroundColor(.secondary)
-                    }
-                    LazyVGrid(columns: layout, spacing: 16) {
-                        ForEach(filteredSymbols(searchText), id: \.self) { symbol in
-                            Button(action: { select(symbol) }) {
-                                SymbolCell(symbol: symbol, isFocused: false)
-                                    .contextMenu {
-                                        Button(action: {
-                                            select(symbol)
-                                        }) {
-                                            Text("Enlarge")
-                                            Image(systemName: "arrow.up.left.and.down.right.and.arrow.up.right.and.down.left")
+        ZStack {
+            NavigationView {
+                ZStack {
+                    ScrollView {
+                        searchBar
+                        HStack {
+                            Text("\(filteredSymbols(searchText).count) symbol\(pluralizer)")
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                                .foregroundColor(.secondary)
+                        }
+                        LazyVGrid(columns: layout, spacing: 16) {
+                            ForEach(filteredSymbols(searchText), id: \.self) { symbol in
+                                Button(action: { select(symbol) }) {
+                                    SymbolCell(symbol: symbol, isFocused: false, namespace: namespace, showingDetails: $showingDetails)
+                                        .contextMenu {
+                                            Button(action: {
+                                                select(symbol)
+                                            }) {
+                                                Text("Enlarge")
+                                                Image(systemName: "arrow.up.left.and.arrow.down.right")
+                                            }
                                         }
-                                    }
+                                        .opacity(((model.selectedSymbol == symbol) && showingDetails) ? 0 : 1)
+                                }
+                                .buttonStyle(PlainButtonStyle())
                             }
-                            .buttonStyle(PlainButtonStyle())
                         }
                     }
                 }
-            }
-            .navigationBarTitle("SF Symbols", displayMode: .automatic)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Menu() {
-                        ForEach(SortOrder.allCases, id: \.self) { order in
-                            Button(action: { sortOrder = order }) {
-                                Text(order.rawValue)
-                                if sortOrder == order {
-                                    Image(systemName: "checkmark")
-                                        .font(Font.body.bold())
-                                        .foregroundColor(Color.primary.opacity(0.7))
+                .navigationBarTitle("SF Symbols", displayMode: .automatic)
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Menu() {
+                            ForEach(SortOrder.allCases, id: \.self) { order in
+                                Button(action: { sortOrder = order }) {
+                                    Text(order.rawValue)
+                                    if sortOrder == order {
+                                        Image(systemName: "checkmark")
+                                            .font(Font.body.bold())
+                                            .foregroundColor(Color.primary.opacity(0.7))
+                                    }
                                 }
                             }
                         }
-                    }
-                    label: {
-                        Image(systemName: "line.horizontal.3.decrease.circle.fill")
-                            .font(Font.title2.bold())
-                            .imageScale(.large)
-                            .foregroundColor(Color.primary.opacity(0.7))
+                        label: {
+                            Image(systemName: "line.horizontal.3.decrease.circle.fill")
+                                .font(Font.title2.bold())
+                                .imageScale(.large)
+                                .foregroundColor(Color.primary.opacity(0.7))
+                        }
                     }
                 }
             }
+            .navigationViewStyle(StackNavigationViewStyle())
+            .blur(radius: showingDetails ? 10 : 0)
+//            .opacity(showingDetails ? 0.5 : 1)
+            if showingDetails {
+                SymbolDetail(model: model, showingDetails: $showingDetails, namespace: namespace)
+            }
         }
-        .sheet(isPresented: $showingDetails) {
-            SymbolDetail(model: model, showingDetails: $showingDetails)
-        }
-        .navigationViewStyle(StackNavigationViewStyle())
     }
     
     var searchBar: some View {
@@ -108,10 +115,12 @@ struct SymbolList: View {
     }
     
     private func select(_ symbol: Symbol) {
-        UIApplication.shared.windows.first?.endEditing(true)
-        model.select(symbol)
-        hapticBump()
-        showingDetails = true
+        withAnimation {
+            UIApplication.shared.windows.first?.endEditing(true)
+            model.select(symbol)
+            hapticBump()
+            showingDetails = true
+        }
     }
     
     private func hapticBump() {
